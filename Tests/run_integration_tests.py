@@ -34,12 +34,12 @@ class IntegrationTester:
         """Проверка доступности API"""
         try:
             response = requests.get(
-                f"{self.api_base_url}/api/links",
+                f"{self.api_base_url}/api/links/my-links",
                 timeout=10
             )
             # Ожидаем 401 (Unauthorized), т.к. не передали токен
-            success = response.status_code in [200, 401]
-            self.log_test("Health Check", success, response.status_code)
+            success = response.status_code == 401
+            self.log_test("Health Check", success, f"Status: {response.status_code}")
             return success
         except Exception as e:
             self.log_test("Health Check", False, str(e))
@@ -99,7 +99,7 @@ class IntegrationTester:
             short_code = None
             if success:
                 data = response.json()
-                short_code = data.get("shortCode")
+                short_code = data.get("code")  # Changed from shortCode to code
             self.log_test("Create Link", success, f"Status: {response.status_code}, Code: {short_code}")
             return short_code
         except Exception as e:
@@ -110,7 +110,7 @@ class IntegrationTester:
         """Тест получения списка ссылок"""
         try:
             response = requests.get(
-                f"{self.api_base_url}/api/links",
+                f"{self.api_base_url}/api/links/my-links",  # Changed endpoint
                 headers={"Authorization": f"Bearer {token}"},
                 timeout=10
             )

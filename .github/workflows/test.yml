@@ -51,11 +51,30 @@ jobs:
       - name: Build backend
         run: dotnet build UrlShortener.Api.csproj --no-restore --configuration Release
 
+      - name: Verify PostgreSQL is ready
+        run: |
+          echo "Checking PostgreSQL connection..."
+          for i in {1..30}; do
+            if pg_isready -h localhost -p 5432 -U postgres; then
+              echo "✓ PostgreSQL is ready!"
+              break
+            fi
+            echo "Waiting for PostgreSQL... ($i/30)"
+            sleep 2
+          done
+          psql -h localhost -U postgres -d urlshortener_test -c "SELECT version();" || echo "Could not connect to database"
+        env:
+          PGPASSWORD: test_password
+
       - name: Install EF Core tools
-        run: dotnet tool install --global dotnet-ef
+        run: |
+          dotnet tool install --global dotnet-ef || dotnet tool update --global dotnet-ef
+          echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
 
       - name: Run database migrations
-        run: dotnet ef database update --project UrlShortener.Api.csproj
+        run: |
+          echo "Running EF Core migrations..."
+          dotnet ef database update --project UrlShortener.Api.csproj --verbose
         env:
           ConnectionStrings__DefaultConnection: "Host=localhost;Port=5432;Database=urlshortener_test;Username=postgres;Password=test_password"
           Jwt__Key: "test-jwt-key-for-github-actions-minimum-32-characters-long"
@@ -64,26 +83,43 @@ jobs:
 
       - name: Start API in background
         run: |
-          dotnet run --project UrlShortener.Api.csproj --no-build --configuration Release &
+          nohup dotnet run --project UrlShortener.Api.csproj --no-build --configuration Release > api.log 2>&1 &
           echo $! > api.pid
+          echo "API started with PID $(cat api.pid)"
         env:
           ConnectionStrings__DefaultConnection: "Host=localhost;Port=5432;Database=urlshortener_test;Username=postgres;Password=test_password"
           Jwt__Key: "test-jwt-key-for-github-actions-minimum-32-characters-long"
           Jwt__Issuer: "UrlShortener"
           Jwt__Audience: "UrlShortenerUsers"
           ASPNETCORE_URLS: "http://localhost:5000"
+          ASPNETCORE_ENVIRONMENT: "Development"
 
       - name: Wait for API to start
         run: |
           echo "Waiting for API to start..."
-          for i in {1..30}; do
-            if curl -s http://localhost:5000/api/links > /dev/null 2>&1 || [ $? -eq 22 ]; then
-              echo "API is up!"
-              break
+          for i in {1..60}; do
+            if curl -f -s http://localhost:5000/api/links > /dev/null 2>&1; then
+              echo "✓ API is up and responding!"
+              exit 0
+            elif [ $? -eq 22 ]; then
+              echo "✓ API is up (401 Unauthorized - expected without token)!"
+              exit 0
             fi
-            echo "Attempt $i: API not ready yet..."
-            sleep 2
+            echo "Attempt $i/60: API not ready yet..."
+            sleep 3
           done
+          echo "✗ API failed to start after 3 minutes"
+          echo "--- API Logs ---"
+          cat api.log || echo "No log file found"
+          exit 1
+
+      - name: Check API health
+        if: success()
+        run: |
+          echo "Testing API endpoints..."
+          curl -v http://localhost:5000/api/links 2>&1 || true
+          echo "--- Recent API Logs ---"
+          tail -n 50 api.log || echo "No log file"
 
       - name: Generate test data
         run: python Tests/generate_test_data.py
@@ -95,11 +131,20 @@ jobs:
         env:
           API_BASE_URL: "http://localhost:5000"
 
+      - name: Show API logs on failure
+        if: failure()
+        run: |
+          echo "=== API Logs ==="
+          cat api.log || echo "No log file found"
+
       - name: Stop API
         if: always()
         run: |
           if [ -f api.pid ]; then
+            echo "Stopping API (PID: $(cat api.pid))"
             kill $(cat api.pid) || true
+            sleep 2
+            kill -9 $(cat api.pid) 2>/dev/null || true
           fi
 
       - name: Upload test results
@@ -107,7 +152,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-results
-          path: Tests/results/
+          path: |
+            Tests/results/
+            api.log
 
   docker-build:
     runs-on: ubuntu-latest

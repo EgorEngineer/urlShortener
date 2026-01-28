@@ -127,7 +127,7 @@ class TestDataGenerator:
                 links = self.generate_test_links(user_id, user["username"])
                 for link in links:
                     cursor.execute("""
-                        INSERT INTO "ShortLinks" ("ShortCode", "OriginalUrl", "UserId", "Clicks", "CreatedAt")
+                        INSERT INTO "ShortLinks" ("Code", "OriginalUrl", "UserId", "Clicks", "CreatedAt")
                         VALUES (%s, %s, %s, %s, %s)
                         RETURNING "Id"
                     """, (
