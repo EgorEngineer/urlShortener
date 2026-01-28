@@ -10,7 +10,6 @@
         public DateTime? ExpiresAt { get; set; }
         public int? MaxClicks { get; set; }
         
-        // Foreign key to User (nullable for anonymous links)
         public int? UserId { get; set; }
         public User? User { get; set; }
     }

@@ -29,6 +29,9 @@ services:
       - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_URLS=http://+:8080
       - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=urlshortener;Username=postgres;Password=${DB_PASSWORD:-postgres}
+      - Jwt__Key=${JWT_KEY}
+      - Jwt__Issuer=UrlShortener
+      - Jwt__Audience=UrlShortenerUsers
     ports:
       - "5000:8080"
     depends_on:

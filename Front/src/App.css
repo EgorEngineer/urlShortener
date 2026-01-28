@@ -53,11 +53,25 @@
   transition: color 0.2s ease;
   padding: 0.5rem 1rem;
   border-radius: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  text-decoration: none;
 }
 
 .nav-link:hover {
   color: var(--primary-light);
   background: rgba(99, 102, 241, 0.1);
+}
+
+.nav-link.auth-link {
+  background: var(--primary);
+  color: white;
+}
+
+.nav-link.auth-link:hover {
+  background: var(--primary-dark);
+  color: white;
 }
 
 /* Main Content */
