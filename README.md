@@ -5,7 +5,7 @@
 ## Функционал
 
 - ✂️ Сокращение длинных URL
-- 📊 Статистика переходов
+- 📊 Статистика переходов по каждой ссылке
 - 🔗 Генерация уникальных коротких кодов
 - 📱 QR-коды для каждой ссылки
 
@@ -22,7 +22,6 @@
 ### Frontend
 - React 18
 - React Router v6
-- Axios
 - Vite
 - Modern CSS
 
@@ -52,6 +51,7 @@ Backend контейнер поддерживает следующие пере�
 - `ASPNETCORE_ENVIRONMENT` - окружение (Production/Development)
 - `ASPNETCORE_URLS` - URL для прослушивания
 - `ConnectionStrings__DefaultConnection` - строка подключения к PostgreSQL
+- `JWT_KEY` - секретный jwt ключ (> 32 символов)
 
 #### Frontend
 
@@ -65,28 +65,10 @@ Backend контейнер поддерживает следующие пере�
 
 ### Запуск с переменными окружения
 
-#### Локальная разработка (по умолчанию)
+#### Локальная разработка
 
 ```bash
 docker-compose up -d
-```
-
-#### Продакшн (с настройкой домена)
-
-Создайте файл `.env` в корне проекта:
-
-```env
-# База данных
-DB_PASSWORD=your_secure_password
-
-# Frontend
-DOMAIN_NAME=yourdomain.com
-```
-
-Или укажите переменные напрямую:
-
-```bash
-DOMAIN_NAME=yourdomain.com DB_PASSWORD=secure_pass docker-compose up -d
 ```
 
 #### Для обработки любого домена
@@ -95,24 +77,40 @@ DOMAIN_NAME=yourdomain.com DB_PASSWORD=secure_pass docker-compose up -d
 DOMAIN_NAME=_ docker-compose up -d
 ```
 
-### ⚠️ Важно для продакшн
-
-1. **Измените пароль БД**: Установите надежный пароль через `DB_PASSWORD`
-2. **Укажите домен**: Задайте `DOMAIN_NAME` для вашего домена
-3. **Используйте HTTPS**: Рекомендуется настроить reverse proxy (nginx/Traefik) с SSL сертификатами
-4. **Проверьте порты**: Убедитесь, что порты 3000 и 5000 доступны или измените их в `docker-compose.yml`
-
 ## Структура проекта
 
 ```
 UrlShortener/
-├── Controllers/           
-├── Data/                  
-├── Models/                
-├── Services/              
-├── Front/                 
-├── Program.cs             
-├── Dockerfile             
-├── docker-compose.yml     
+├── Controllers/
+│   ├── AuthController.cs       
+│   ├── LinksController.cs      # Управление ссылками
+│   └── RedirectController.cs   # Редиректы
+├── Data/
+│   └── AppDbContext.cs         
+├── Models/
+│   ├── User.cs                 
+│   └── ShortLink.cs            
+├── Services/
+│   ├── JwtService.cs           
+│   ├── PasswordHasher.cs       
+│   ├── LinkGeneratorService.cs # Генерация кодов
+│   ├── QRCodeService.cs        # QR-коды
+│   └── CacheService.cs         
+├── Front/
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── Login.jsx       # Страница входа
+│   │   │   ├── Register.jsx    # Регистрация
+│   │   │   ├── Dashboard.jsx   # Личный кабинет
+│   │   │   ├── URLShortener.jsx
+│   │   │   └── LinkDetails.jsx
+│   │   ├── contexts/
+│   │   │   └── AuthContext.jsx 
+│   │   └── services/
+│   │       └── api.js         
+│   └── nginx.conf.template     
+├── Program.cs
+├── Dockerfile
+├── docker-compose.yml
 └── README.md
 ```
