@@ -1,0 +1,139 @@
+name: CI/CD Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: urlshortener_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: test_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r Tests/requirements.txt
+
+      - name: Restore .NET dependencies
+        run: dotnet restore
+
+      - name: Build backend
+        run: dotnet build --no-restore --configuration Release
+
+      - name: Run database migrations
+        run: dotnet ef database update
+        env:
+          ConnectionStrings__DefaultConnection: "Host=localhost;Port=5432;Database=urlshortener_test;Username=postgres;Password=test_password"
+          Jwt__Key: "test-jwt-key-for-github-actions-minimum-32-characters-long"
+          Jwt__Issuer: "UrlShortener"
+          Jwt__Audience: "UrlShortenerUsers"
+
+      - name: Start API in background
+        run: |
+          dotnet run --no-build --configuration Release &
+          echo $! > api.pid
+        env:
+          ConnectionStrings__DefaultConnection: "Host=localhost;Port=5432;Database=urlshortener_test;Username=postgres;Password=test_password"
+          Jwt__Key: "test-jwt-key-for-github-actions-minimum-32-characters-long"
+          Jwt__Issuer: "UrlShortener"
+          Jwt__Audience: "UrlShortenerUsers"
+          ASPNETCORE_URLS: "http://localhost:5000"
+
+      - name: Wait for API to start
+        run: |
+          echo "Waiting for API to start..."
+          for i in {1..30}; do
+            if curl -s http://localhost:5000/api/links > /dev/null 2>&1 || [ $? -eq 22 ]; then
+              echo "API is up!"
+              break
+            fi
+            echo "Attempt $i: API not ready yet..."
+            sleep 2
+          done
+
+      - name: Generate test data
+        run: python Tests/generate_test_data.py
+        env:
+          DATABASE_URL: "host=localhost port=5432 dbname=urlshortener_test user=postgres password=test_password"
+
+      - name: Run integration tests
+        run: python Tests/run_integration_tests.py
+        env:
+          API_BASE_URL: "http://localhost:5000"
+
+      - name: Stop API
+        if: always()
+        run: |
+          if [ -f api.pid ]; then
+            kill $(cat api.pid) || true
+          fi
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: Tests/results/
+
+  docker-build:
+    runs-on: ubuntu-latest
+    needs: test
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Backend Docker image
+        run: docker build -t urlshortener-api:test .
+
+      - name: Build Frontend Docker image
+        run: docker build -t urlshortener-frontend:test ./Front
+
+      - name: Test Docker Compose
+        run: |
+          docker compose up -d
+          sleep 30
+          docker compose ps
+          curl -f http://localhost:5000/api/links || echo "API check failed"
+          curl -f http://localhost:3000 || echo "Frontend check failed"
+          docker compose logs
+          docker compose down
+        env:
+          DB_PASSWORD: test_password
+          JWT_KEY: test-jwt-key-for-github-actions-minimum-32-characters-long
+          DOMAIN_NAME: localhost
+

@@ -62,10 +62,15 @@ yarn-error.log*
 build/
 dist/
 
-# OS files
 .DS_Store
 Thumbs.db
 
 # Logs
 logs
 *.log
+
+# Test results
+Tests/results/
+Tests/__pycache__/
+*.pyc
+__pycache__/
