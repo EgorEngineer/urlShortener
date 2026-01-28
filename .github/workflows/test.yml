@@ -46,13 +46,16 @@ jobs:
           pip install -r Tests/requirements.txt
 
       - name: Restore .NET dependencies
-        run: dotnet restore
+        run: dotnet restore UrlShortener.Api.csproj
 
       - name: Build backend
-        run: dotnet build --no-restore --configuration Release
+        run: dotnet build UrlShortener.Api.csproj --no-restore --configuration Release
+
+      - name: Install EF Core tools
+        run: dotnet tool install --global dotnet-ef
 
       - name: Run database migrations
-        run: dotnet ef database update
+        run: dotnet ef database update --project UrlShortener.Api.csproj
         env:
           ConnectionStrings__DefaultConnection: "Host=localhost;Port=5432;Database=urlshortener_test;Username=postgres;Password=test_password"
           Jwt__Key: "test-jwt-key-for-github-actions-minimum-32-characters-long"
@@ -61,7 +64,7 @@ jobs:
 
       - name: Start API in background
         run: |
-          dotnet run --no-build --configuration Release &
+          dotnet run --project UrlShortener.Api.csproj --no-build --configuration Release &
           echo $! > api.pid
         env:
           ConnectionStrings__DefaultConnection: "Host=localhost;Port=5432;Database=urlshortener_test;Username=postgres;Password=test_password"
