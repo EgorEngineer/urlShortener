@@ -33,14 +33,12 @@
 - Node.js 16+
 - Docker
 
-### Сборка docker-образов
+### Запуск приложения
 
 ```bash
-# Backend
-docker build -t urlshortener-api .
+docker-compose build --no-cache
 
-# Frontend
-docker build -t urlshortener-frontend ./Front
+docker-compose up -d
 ```
 
 ### Переменные окружения для Docker
